@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Game Cinta Sayang</title>
+<style>
+  html, body {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  background-image: 
+    url('https://cloudkuimages.guru/uploads/images/684415491a601.jpg'), /* Gambar love */
+    url('https://cloudkuimages.guru/uploads/images/68441bb701a1d.jpg'); /* Gambar background utama */
+  background-size: 100px, cover; /* Ukuran gambar pertama dan kedua */
+  background-position: top right, center;
+  background-repeat: no-repeat, no-repeat;
+  background-attachment: fixed;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  min-height: 100vh;
+  padding: 20px;
+  color: #333;
+}
+  #login, #buttons, #result, #status {
+    width: 320px;
+    max-width: 90vw;
+    margin-bottom: 20px;
+    text-align: center;
+  }
+  #gameContainer {
+    background: #fff8f8;
+    border-radius: 18px;
+    padding: 20px 25px;
+    box-shadow: 0 12px 30px rgba(0,0,0,0.12);
+    display: inline-block;
+    text-align: center;
+    user-select: none;
+  }
+  canvas {
+    display: block;
+    background: #fff;
+    border: 3px solid #e91e63;
+    border-radius: 14px;
+    box-shadow: 0 6px 15px rgba(233,30,99,0.35);
+    margin: 0 auto 15px auto;
+  }
+  #status {
+    font-weight: 600;
+    font-size: 1.1rem;
+    color: #b71c1c;
+    white-space: pre-line;
+    user-select: none;
+  }
+  button {
+    background: #e91e63;
+    border: none;
+    padding: 12px 24px;
+    color: #fff;
+    font-size: 1rem;
+    border-radius: 30px;
+    cursor: pointer;
+    margin: 8px;
+    box-shadow: 0 4px 12px rgba(233,30,99,0.4);
+    transition: background 0.3s ease;
+    user-select: none;
+  }
+  button:hover {
+    background: #c2185b;
+  }
+  input[type="text"] {
+    width: calc(100% - 40px);
+    padding: 10px 18px;
+    font-size: 1rem;
+    border-radius: 30px;
+    border: 2px solid #e91e63;
+    outline: none;
+    box-shadow: 0 0 8px #f48fb1;
+    transition: border-color 0.3s ease;
+    margin-bottom: 15px;
+  }
+  input[type="text"]:focus {
+    border-color: #ad1457;
+  }
+  #result {
+    white-space: pre-line;
+    font-weight: 600;
+    font-size: 1.2rem;
+    color: #b71c1c;
+  }
+</style>
+</head>
+<body>
+
+<!-- LOGIN -->
+<div id="login">
+  <h2>Masuk Dulu Yuk!</h2>
+  <input type="text" id="nameInput" placeholder="Tulis namamu..." maxlength="20" />
+  <br />
+  <button id="loginBtn">Masuk</button>
+</div>
+
+<!-- LEVEL PILIHAN -->
+<div id="buttons" style="display:none;">
+  <h3>Pilih Level Sayang</h3>
+  <button data-level="easy">Esy</button>
+  <button data-level="medium">Medium</button>
+  <button data-level="hard">Hart</button>
+</div>
+
+<!-- GAME AREA -->
+<div id="gameContainer" style="display:none;">
+  <canvas id="game" width="320" height="480"></canvas>
+  <div id="status"></div>
+</div>
+
+<!-- HASIL -->
+<div id="result"></div>
+
+<!-- BUTTON KEMBALI -->
+<button id="backBtn" style="display:none;">Kembali ke Menu</button>
+
+<script>
+  const loginDiv = document.getElementById('login');
+  const buttonsDiv = document.getElementById('buttons');
+  const gameContainer = document.getElementById('gameContainer');
+  const canvas = document.getElementById('game');
+  const ctx = canvas.getContext('2d');
+  const status = document.getElementById('status');
+  const result = document.getElementById('result');
+  const backBtn = document.getElementById('backBtn');
+  const nameInput = document.getElementById('nameInput');
+  const loginBtn = document.getElementById('loginBtn');
+
+  let player = { x: 140, y: 420, width: 40, height: 40 };
+  let objects = [];
+  let particles = [];
+  let speed = 2;
+  let score = 0;
+  let bombsHit = 0;
+  let isPlaying = false;
+  let startTime, endTime;
+  let gameInterval, spawnInterval, speedIncreaseInterval;
+  let levelSpeedMap = { easy: 2, medium: 3.5, hard: 5 };
+  let levelSelected = 'easy';
+  let playerName = '';
+  const heartImage = new Image();
+  heartImage.src = 'https://cloudkuimages.guru/uploads/images/684415491a601.jpg'; // ganti dengan foto kamu
+
+  function createParticles(x, y, color) {
+    for (let i = 0; i < 15; i++) {
+      particles.push({
+        x: x,
+        y: y,
+        vx: (Math.random() - 0.5) * 3,
+        vy: (Math.random() - 0.5) * 3,
+        radius: Math.random() * 3 + 2,
+        alpha: 1,
+        color: color,
+      });
+    }
+  }
+
+  function updateParticles() {
+    particles.forEach((p, i) => {
+      p.x += p.vx;
+      p.y += p.vy;
+      p.alpha -= 0.03;
+      if (p.alpha <= 0) particles.splice(i, 1);
+    });
+  }
+
+  function drawParticles() {
+    particles.forEach(p => {
+      ctx.save();
+      ctx.globalAlpha = p.alpha;
+      ctx.fillStyle = p.color;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    });
+  }
+
+  function updateStatus() {
+    status.textContent = `Nama: ${playerName}\nLevel: ${levelSelected}\nPoin: ${score}\nBom: ${bombsHit}/3`;
+  }
+
+  function spawnObject() {
+    const type = Math.random() < 0.75 ? 'heart' : 'bomb';
+    const x = Math.random() * (canvas.width - 40);
+    objects.push({ x: x, y: -40, width: 40, height: 40, type: type });
+  }
+
+  function drawObject(obj) {
+    if (obj.type === 'heart') {
+      ctx.fillStyle = '#e91e63';
+      ctx.beginPath();
+      ctx.moveTo(obj.x + 20, obj.y + 10);
+      ctx.bezierCurveTo(obj.x + 20, obj.y, obj.x, obj.y, obj.x, obj.y + 15);
+      ctx.bezierCurveTo(obj.x, obj.y + 30, obj.x + 20, obj.y + 40, obj.x + 20, obj.y + 40);
+      ctx.bezierCurveTo(obj.x + 20, obj.y + 40, obj.x + 40, obj.y + 30, obj.x + 40, obj.y + 15);
+      ctx.bezierCurveTo(obj.x + 40, obj.y, obj.x + 20, obj.y, obj.x + 20, obj.y + 10);
+      ctx.fill();
+    } else {
+      ctx.fillStyle = '#222';
+      ctx.beginPath();
+      ctx.arc(obj.x + 20, obj.y + 20, 18, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = '#eee';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(obj.x + 10, obj.y + 15);
+      ctx.lineTo(obj.x + 30, obj.y + 25);
+      ctx.moveTo(obj.x + 30, obj.y + 15);
+      ctx.lineTo(obj.x + 10, obj.y + 25);
+      ctx.stroke();
+    }
+  }
+
+  function gameLoop() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(heartImage, player.x, player.y, player.width, player.height);
+
+    for (let i = objects.length - 1; i >= 0; i--) {
+      let obj = objects[i];
+      obj.y += speed;
+
+      drawObject(obj);
+
+      // cek tabrakan
+      if (
+        obj.x < player.x + player.width &&
+        obj.x + obj.width > player.x &&
+        obj.y < player.y + player.height &&
+        obj.y + obj.height > player.y
+      ) {
+        if (obj.type === 'heart') {
+          score += 10;
+          createParticles(player.x + 20, player.y + 20, '#e91e63');
+        } else {
+          bombsHit++;
+          createParticles(player.x + 20, player.y + 20, '#222');
+          if (bombsHit >= 3) {
+            endGame();
+            return;
+          }
+        }
+        objects.splice(i, 1);
+      } else if (obj.y > canvas.height) {
+        objects.splice(i, 1);
+      }
+    }
+
+    updateParticles();
+    drawParticles();
+    updateStatus();
+  }
+
+  function endGame() {
+    isPlaying = false;
+    clearInterval(gameInterval);
+    clearInterval(spawnInterval);
+    clearInterval(speedIncreaseInterval);
+    endTime = Date.now();
+    gameContainer.style.display = 'none';
+    backBtn.style.display = 'inline-block';
+    let dur = ((endTime - startTime) / 1000).toFixed(1);
+    result.textContent = `Game Over\nSkor: ${score}\nWaktu main: ${dur} detik\nBom kena: ${bombsHit}`;
+  }
+
+  function startGame() {
+    score = 0;
+    bombsHit = 0;
+    objects = [];
+    particles = [];
+    speed = levelSpeedMap[levelSelected];
+    player.x = 140;
+    isPlaying = true;
+    startTime = Date.now();
+    updateStatus();
+
+    gameContainer.style.display = 'inline-block';
+    result.textContent = '';
+    backBtn.style.display = 'none';
+
+    if (gameInterval) clearInterval(gameInterval);
+    if (spawnInterval) clearInterval(spawnInterval);
+    if (speedIncreaseInterval) clearInterval(speedIncreaseInterval);
+
+    gameInterval = setInterval(gameLoop, 30);
+    spawnInterval = setInterval(spawnObject, 1500);
+
+    // Tambah kecepatan tiap 15 detik
+    speedIncreaseInterval = setInterval(() => {
+      speed += 0.5;
+      if (speed > 12) speed = 12; // max speed
+    }, 15000);
+  }
+
+  // Kontrol pemain dengan mouse dan sentuh
+  canvas.addEventListener('mousemove', e => {
+    if (!isPlaying) return;
+    let rect = canvas.getBoundingClientRect();
+    player.x = e.clientX - rect.left - player.width / 2;
+    if (player.x < 0) player.x = 0;
+    if (player.x + player.width > canvas.width) player.x = canvas.width - player.width;
+  });
+
+  canvas.addEventListener('touchmove', e => {
+    if (!isPlaying) return;
+    e.preventDefault();
+    let rect = canvas.getBoundingClientRect();
+    player.x = e.touches[0].clientX - rect.left - player.width / 2;
+    if (player.x < 0) player.x = 0;
+    if (player.x + player.width > canvas.width) player.x = canvas.width - player.width;
+  }, { passive: false });
+
+  // Login
+  loginBtn.onclick = () => {
+    let name = nameInput.value.trim();
+    if (!name) return alert('Tolong isi nama dulu ya!');
+    if (name.toLowerCase() === 'melia' || name.toLowerCase() === 'alya') {
+      playerName = 'Sayang Nya Rizky';
+    } else {
+      playerName = name;
+    }
+    loginDiv.style.display = 'none';
+    buttonsDiv.style.display = 'block';
+  };
+
+  // Pilih level
+  buttonsDiv.querySelectorAll('button').forEach(btn => {
+    btn.onclick = () => {
+      levelSelected = btn.getAttribute('data-level');
+      buttonsDiv.style.display = 'none';
+      startGame();
+    };
+  });
+
+  // Kembali ke menu
+  backBtn.onclick = () => {
+    gameContainer.style.display = 'none';
+    backBtn.style.display = 'none';
+    result.textContent = '';
+    buttonsDiv.style.display = 'block';
+  };
+
+</script>
+
+</body>
+</html>
